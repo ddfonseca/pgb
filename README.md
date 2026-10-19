@@ -12,6 +12,19 @@ pgb branch list | url | start | reset | rm
 pgb gc                                                           # apaga branches com TTL vencido
 ```
 
+## Pontos de salvamento
+
+```sh
+pgb save create pr-1 antes-do-bug     # guarda o estado da branch
+pgb save restore pr-1 antes-do-bug    # volta a ele (o ponto continua lá: restaure quantas vezes quiser)
+pgb save list [pr-1] | rm pr-1 antes-do-bug
+```
+
+Para reproduzir um bug: salva antes da ação problemática, muda o código, restaura,
+repete. O ponto é um volume `pgb-save-<branch>_<ponto>` copiado como o clone (reflink ou cheia),
+com a branch parada durante a cópia (consistência) e religada no fim se estava rodando; porta e URL
+não mudam. O restore não é interrompível. `branch rm` apaga os pontos; `branch reset` os mantém.
+
 ## Cópia de prod (lógica, filtrada e mascarada na origem)
 
 ```sh

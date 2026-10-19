@@ -32,6 +32,7 @@ const (
 	lExpires  = "pgb.expires"
 	lPort     = "pgb.port"
 	lOwner    = "pgb.owner"
+	lBranch   = "pgb.branch" // ponto de salvamento: a branch dona
 )
 
 func baseVolume(name string) string { return "pgb-base-" + name }
