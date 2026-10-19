@@ -22,6 +22,7 @@ type Config struct {
 	Mask     map[string]map[string]string `yaml:"mask"`
 	Presets  map[string]string            `yaml:"presets"`
 	Profiles map[string]Profile           `yaml:"profiles"`
+	Audit    AuditConfig                  `yaml:"audit"`
 }
 
 type SourceConfig struct {

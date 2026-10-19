@@ -44,6 +44,9 @@ Exemplo completo: `examples/myapp.pgb.yaml`.
 - `hash` usa um sal aleatório por cópia (descartado): consistente entre tabelas, irreversível.
 - Tabelas de extensão (ex.: `spatial_ref_sys`) vêm do `CREATE EXTENSION`; partições pela tabela-mãe.
 - Antes das FKs, linhas que apontam para pais que não vieram são apagadas em cascata (`--strict` falha).
+- Auditoria de PII antes do post-data: WhatsApp, telefone, e-mail ou CPF numa coluna de texto sem
+  mask desfaz a base (dado de negócio vai em `audit.ignore`). `pgb audit <branch>` faz o mesmo sob
+  demanda; numa base `--from-container` varre todas as colunas, porque o mask não foi aplicado.
 - Estimativa pelo planner antes de copiar: aborta acima de `max_size` (20GB) ou do espaço livre.
 - `--cloudsql projeto:região:instância` (ou `source.cloudsql`): túnel pelo conector Go do Cloud SQL,
   com `source.impersonate` (a service account a impersonar). Testado com `--dry-run` no Cloud SQL de prod.

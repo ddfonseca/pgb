@@ -228,6 +228,10 @@ func baseFromRemote(name, family string, o remoteOpts) error {
 	if err := cleanOrphans(ctx, dst, plans, fks, o.strict); err != nil {
 		return err
 	}
+	// PII que passou sem máscara (coluna nova sem regra no pgb.yaml) desfaz a base no release.
+	if err := auditCopy(ctx, dst, cfg); err != nil {
+		return err
+	}
 	logf("aplicando índices, constraints e triggers (post-data)...")
 	if err := psqlExec(tmp, src.user, src.db, postData); err != nil {
 		return fmt.Errorf("schema post-data: %w", err)
