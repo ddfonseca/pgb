@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -152,6 +153,9 @@ func baseFromRemote(name, family string, o remoteOpts) error {
 		return fmt.Errorf("estimativa %s passa do max_size %s: filtre mais tabelas no pgb.yaml ou use --max-size",
 			humanSize(total), humanSize(maxSize))
 	}
+	for _, c := range cfg.AfterCopy {
+		logf("after_copy: %s", c)
+	}
 	if o.dryRun {
 		return nil
 	}
@@ -242,11 +246,39 @@ func baseFromRemote(name, family string, o remoteOpts) error {
 	if _, err := dst.Exec(ctx, "analyze"); err != nil {
 		return err
 	}
+	if err := afterCopy(cfg.AfterCopy, name, tmp, src.user, src.db); err != nil {
+		return err
+	}
 	dst.Close(ctx)
 	if _, err := docker("stop", "-t", "60", tmp); err != nil {
 		return err
 	}
 	return b.finish()
+}
+
+// afterCopy roda os comandos de after_copy (sh -c, no diretório atual: o do pgb.yaml no refresh)
+// com DATABASE_URL apontando para a base ainda em construção. O que eles gravarem vai para toda
+// branch. Um que falhe desfaz a base.
+func afterCopy(cmds []string, name, tmp, user, db string) error {
+	if len(cmds) == 0 {
+		return nil
+	}
+	port, err := hostPort(tmp)
+	if err != nil {
+		return err
+	}
+	u := url.URL{Scheme: "postgres", User: url.UserPassword(user, localPassword), Host: "127.0.0.1:" + port,
+		Path: "/" + db, RawQuery: "sslmode=disable"}
+	for _, c := range cmds {
+		logf("rodando after_copy: %s", c)
+		cmd := exec.CommandContext(appCtx, "sh", "-c", c)
+		cmd.Env = append(os.Environ(), "DATABASE_URL="+u.String(), "PGB_BASE="+name)
+		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("after_copy %q: %w", c, err)
+		}
+	}
+	return nil
 }
 
 func first(vals ...string) string {

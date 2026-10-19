@@ -24,6 +24,7 @@ type Config struct {
 	Profiles  map[string]Profile           `yaml:"profiles"`
 	Audit     AuditConfig                  `yaml:"audit"`
 	TimeShift TimeShiftConfig              `yaml:"time_shift"`
+	AfterCopy []string                     `yaml:"after_copy"` // comandos rodados com DATABASE_URL na base antes de congelar
 }
 
 // TimeShiftConfig: tabelas que o `branch create --at` não desloca (globs, como em tables).

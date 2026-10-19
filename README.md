@@ -61,6 +61,9 @@ Exemplo completo: `examples/myapp.pgb.yaml`.
 - Auditoria de PII antes do post-data: WhatsApp, telefone, e-mail ou CPF numa coluna de texto sem
   mask desfaz a base (dado de negócio vai em `audit.ignore`). `pgb audit <branch>` faz o mesmo sob
   demanda; numa base `--from-container` varre todas as colunas, porque o mask não foi aplicado.
+- `after_copy`: comandos (`sh -c`, no diretório do `pgb.yaml`) rodados com `DATABASE_URL` na base em
+  construção, depois dos índices e antes de congelar; o que gravarem vem em toda branch (ex.: o
+  seed de um usuário de dev, já que a cópia não traz senhas). Um que falhe desfaz a base.
 - Estimativa pelo planner antes de copiar: aborta acima de `max_size` (20GB) ou do espaço livre.
 - `--cloudsql projeto:região:instância` (ou `source.cloudsql`): túnel pelo conector Go do Cloud SQL,
   com `source.impersonate` (a service account a impersonar). Testado com `--dry-run` no Cloud SQL de prod.
