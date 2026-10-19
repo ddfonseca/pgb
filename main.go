@@ -55,7 +55,7 @@ func rootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(baseCmd(), branchCmd(), &cobra.Command{
+	root.AddCommand(baseCmd(), branchCmd(), auditCmd(), &cobra.Command{
 		Use:   "gc",
 		Short: "Apaga as branches com TTL vencido",
 		RunE:  func(*cobra.Command, []string) error { return gc() },
