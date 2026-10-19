@@ -9,6 +9,7 @@ pgb base create dev --from-container myapp-postgres-1   # cópia consistente, se
 pgb branch create pr-1 --ttl 1h                                  # imprime a DATABASE_URL
 pgb branch exec ci-1 --create --rm -- npm test                   # cria, roda com DATABASE_URL, apaga
 pgb branch list | url | start | reset | rm
+pgb branch changes pr-1                                          # o que o app escreveu (DML), por transação
 pgb gc                                                           # apaga branches com TTL vencido
 ```
 
@@ -59,6 +60,33 @@ A receita (origem, `pgb.yaml`, profile, `--set`, `--since`...) fica no label `pg
 sem a senha: com `--from-url`, o refresh pede `PGPASSWORD`. `--from prod` e o reset usam a versão
 pronta mais nova; as branches abertas continuam na versão delas até o reset, e versões com
 branches não são apagadas. Bases criadas antes do refresh existir precisam ser recriadas.
+
+## O que o app escreveu na branch
+
+```sh
+pgb branch changes pr-1                  # todo INSERT/UPDATE/DELETE desde a criação, por transação
+pgb branch changes pr-1 --consume        # idem, e a próxima chamada mostra só o que vier depois
+pgb branch changes pr-1 --summary        # contagem por tabela × operação
+pgb branch changes pr-1 --table 'user*'  # glob no nome (fora do public: schema.tabela); --full não trunca
+```
+
+Para responder "o que esse fluxo gravou?": suba o app apontando para a branch,
+reproduza o fluxo e rode `changes`. Saída:
+
+```
+── xid 40466  2026-10-19 03:50:25.138  (2)
+  INSERT orders  id=1042 customer_id=42 status='pending' ...
+  UPDATE orders  id=1042 customer_id=42 status='paid' ...
+```
+
+- Toda branch nasce com `wal_level = logical` e o slot `pgb_changes` (plugin `test_decoding`, que vem
+  com o Postgres). Branches criadas antes disso não têm: recrie, ou `pgb branch reset` (que recria).
+- Só DML: DDL (migrations, `create table`) não aparece. `TRUNCATE` aparece.
+- UPDATE mostra a linha nova inteira (o Postgres não manda os valores antigos); `[antes: ...]` só
+  quando a chave primária mudou. DELETE mostra só a chave (ou nada, em tabela sem PK).
+- Valor grande (TOAST) que o UPDATE não mexeu aparece como `unchanged-toast-datum`.
+- O slot segura o WAL até alguém consumir, com teto de 2GB (`max_slot_wal_keep_size`): passou disso,
+  o Postgres invalida o slot para proteger o disco (a branch continua normal). `--consume` libera.
 
 ## Como funciona
 

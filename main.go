@@ -185,7 +185,7 @@ func branchCmd() *cobra.Command {
 		return &cobra.Command{Use: use + " <nome>", Short: short, Args: nameArg,
 			RunE: func(_ *cobra.Command, args []string) error { return fn(args[0]) }}
 	}
-	cmd.AddCommand(create, exec,
+	cmd.AddCommand(create, exec, changesCmd(),
 		&cobra.Command{Use: "list", Short: "Lista as branches",
 			RunE: func(*cobra.Command, []string) error { return branchList() }},
 		one("url", "Imprime a DATABASE_URL da branch", func(n string) error {
