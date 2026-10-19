@@ -55,7 +55,18 @@ func rootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), migrateCmd(), &cobra.Command{
+	var yes bool
+	purgeCmd := &cobra.Command{
+		Use:   "purge",
+		Short: "Apaga tudo do pgb (bases, branches, pontos) e libera o disco",
+		Long: `Remove todo container e volume com o label pgb.kind: bases e versões, branches, pontos de
+salvamento e helpers. Mostra a lista e pede confirmação (ou --yes). Não mexe em imagens nem
+em containers de fora do pgb (ex.: o Postgres do docker compose).`,
+		Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error { return purge(yes) },
+	}
+	purgeCmd.Flags().BoolVar(&yes, "yes", false, "não pede confirmação")
+	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), migrateCmd(), purgeCmd, &cobra.Command{
 		Use:   "gc",
 		Short: "Apaga as branches com TTL vencido",
 		RunE:  func(*cobra.Command, []string) error { return gc() },

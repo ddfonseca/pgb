@@ -11,6 +11,7 @@ pgb branch exec ci-1 --create --rm -- npm test                   # cria, roda co
 pgb branch list | url | start | reset | rm
 pgb branch changes pr-1                                          # o que o app escreveu (DML), por transação
 pgb gc                                                           # apaga branches com TTL vencido
+pgb purge                                                        # apaga tudo do pgb (pede confirmação)
 ```
 
 ## Pontos de salvamento
