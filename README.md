@@ -32,7 +32,20 @@ Exemplo completo: `examples/myapp.pgb.yaml`.
 - Antes das FKs, linhas que apontam para pais que não vieram são apagadas em cascata (`--strict` falha).
 - Estimativa pelo planner antes de copiar: aborta acima de `max_size` (20GB) ou do espaço livre.
 - `--cloudsql projeto:região:instância` (ou `source.cloudsql`): túnel pelo conector Go do Cloud SQL,
-  com `source.impersonate` (a service account a impersonar). **Ainda não testado contra o Cloud SQL.**
+  com `source.impersonate` (a service account a impersonar). Testado com `--dry-run` no Cloud SQL de prod.
+
+## Atualizar uma base (versões)
+
+```sh
+pgb base refresh prod             # refaz com a mesma receita como prod.20261020153000
+pgb base refresh prod --keep 3    # mantém as 3 versões mais novas (padrão 2)
+pgb branch reset pr-1             # a branch passa para a versão nova
+```
+
+A receita (origem, `pgb.yaml`, profile, `--set`, `--since`...) fica no label `pgb.recipe` da base,
+sem a senha: com `--from-url`, o refresh pede `PGPASSWORD`. `--from prod` e o reset usam a versão
+pronta mais nova; as branches abertas continuam na versão delas até o reset, e versões com
+branches não são apagadas. Bases criadas antes do refresh existir precisam ser recriadas.
 
 ## Como funciona
 

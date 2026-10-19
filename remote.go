@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -62,7 +63,48 @@ type tablePlan struct {
 	rows                  int64
 }
 
-func baseFromRemote(name string, o remoteOpts) error {
+// baseRecipe é como uma base foi criada, guardada no label pgb.recipe para o `base refresh`
+// refazer igual. A URL vai sem senha (labels aparecem no docker inspect): no refresh, a senha
+// vem de novo do env_file, ou do PGPASSWORD.
+type baseRecipe struct {
+	Kind     string            `json:"kind"` // container | remote
+	From     string            `json:"from,omitempty"`
+	Mask     string            `json:"mask,omitempty"`
+	Config   string            `json:"config,omitempty"`
+	Cwd      string            `json:"cwd,omitempty"` // env_file é relativo ao diretório de onde o create rodou
+	Profile  string            `json:"profile,omitempty"`
+	Params   map[string]string `json:"params,omitempty"`
+	Since    string            `json:"since,omitempty"`
+	MaxSize  string            `json:"max_size,omitempty"`
+	FromURL  string            `json:"from_url,omitempty"`
+	CloudSQL string            `json:"cloudsql,omitempty"`
+	Image    string            `json:"image,omitempty"`
+	Strict   bool              `json:"strict,omitempty"`
+}
+
+func (o remoteOpts) recipe() baseRecipe {
+	r := baseRecipe{Kind: "remote", Profile: o.profile, Params: o.params, Since: o.since, MaxSize: o.maxSize,
+		CloudSQL: o.cloudSQL, Image: o.image, Strict: o.strict}
+	r.Cwd, _ = os.Getwd()
+	if _, err := os.Stat(o.configFile); err == nil {
+		r.Config, _ = filepath.Abs(o.configFile)
+	}
+	if u, err := url.Parse(o.fromURL); err == nil && o.fromURL != "" {
+		if u.User != nil {
+			u.User = url.User(u.User.Username())
+		}
+		r.FromURL = u.String()
+	}
+	return r
+}
+
+func (r baseRecipe) remoteOpts() remoteOpts {
+	return remoteOpts{configFile: first(r.Config, "pgb.yaml"), configSet: r.Config != "", profile: r.Profile,
+		params: r.Params, since: r.Since, maxSize: r.MaxSize, fromURL: r.FromURL, cloudSQL: r.CloudSQL,
+		image: r.Image, strict: r.Strict}
+}
+
+func baseFromRemote(name, family string, o remoteOpts) error {
 	ctx := appCtx
 	cfg, err := loadConfig(o.configFile, o.configSet)
 	if err != nil {
@@ -141,6 +183,8 @@ func baseFromRemote(name string, o remoteOpts) error {
 	if o.profile != "" {
 		labels["pgb.profile"] = o.profile
 	}
+	recipe, _ := json.Marshal(o.recipe())
+	labels[lFamily], labels[lRecipe] = family, string(recipe)
 	b := &baseBuild{name: name, labels: labels}
 	if err := b.lock("-e", "POSTGRES_USER="+src.user, "-e", "POSTGRES_PASSWORD="+localPassword,
 		"-e", "POSTGRES_DB="+src.db, "-p", "127.0.0.1::5432"); err != nil {
@@ -270,7 +314,10 @@ func openSource(ctx context.Context, cfg *Config, o remoteOpts) (*source, error)
 	src.conn = conn
 	src.close = func() { conn.Close(ctx); stopTunnel() }
 
-	pass, _ := u.User.Password()
+	pass, ok := u.User.Password()
+	if !ok {
+		pass = os.Getenv("PGPASSWORD") // URL sem senha (ex.: refresh de uma base criada com --from-url)
+	}
 	src.env = append(os.Environ(), "PGPASSWORD="+pass)
 	net, host := containerNetwork(pc.Host)
 	src.dumpArgs = append(net, "-e", "PGPASSWORD")

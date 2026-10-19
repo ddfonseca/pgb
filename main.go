@@ -77,10 +77,10 @@ Com --from-url/--cloudsql/source do pgb.yaml: cópia lógica, com as regras de t
 		Args: nameArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if fromContainer != "" {
-				return baseFromContainer(args[0], fromContainer, mask)
+				return baseFromContainer(args[0], args[0], fromContainer, mask)
 			}
 			ro.configSet = cmd.Flags().Changed("config")
-			return baseFromRemote(args[0], ro)
+			return baseFromRemote(args[0], args[0], ro)
 		},
 	}
 	f := create.Flags()
@@ -102,13 +102,27 @@ Com --from-url/--cloudsql/source do pgb.yaml: cópia lógica, com as regras de t
 	var force bool
 	rm := &cobra.Command{
 		Use:   "rm <nome>",
-		Short: "Apaga uma base",
-		Args:  nameArg,
+		Short: "Apaga uma base (ou uma versão dela)",
+		Args:  baseRefArg,
 		RunE:  func(_ *cobra.Command, args []string) error { return baseRm(args[0], force) },
 	}
 	rm.Flags().BoolVar(&force, "force", false, "apaga também as branches dela")
 
-	cmd.AddCommand(create, rm, &cobra.Command{
+	var keep int
+	var refreshDry bool
+	refresh := &cobra.Command{
+		Use:   "refresh <nome>",
+		Short: "Recria a base com dados novos, como uma versão nova; as branches abertas continuam na antiga",
+		Long: `Refaz a base do mesmo jeito que ela foi criada (mesma origem, pgb.yaml, profile e --set),
+como <nome>.AAAAMMDDhhmmss. Branches novas e o reset passam a usar a versão nova; as abertas
+continuam na antiga até o reset. Ficam as --keep versões mais novas, e as que ainda têm branches.`,
+		Args: nameArg,
+		RunE: func(_ *cobra.Command, args []string) error { return baseRefresh(args[0], keep, refreshDry) },
+	}
+	refresh.Flags().IntVar(&keep, "keep", 2, "quantas versões manter")
+	refresh.Flags().BoolVar(&refreshDry, "dry-run", false, "só mostra o plano e a estimativa de tamanho")
+
+	cmd.AddCommand(create, rm, refresh, &cobra.Command{
 		Use:   "list",
 		Short: "Lista as bases",
 		RunE:  func(*cobra.Command, []string) error { return baseList() },

@@ -48,7 +48,7 @@ func createBranch(name string, base map[string]string, expires, port string) err
 		}
 	}
 	labels := map[string]string{
-		lKind: "branch", lName: name, lBase: base[lName],
+		lKind: "branch", lName: name, lBase: base[lName], lFamily: base[lFamily],
 		lUser: base[lUser], lPassword: base[lPassword], lDB: base[lDB],
 		lCreated: time.Now().UTC().Format(time.RFC3339), lPort: port,
 	}
@@ -188,16 +188,20 @@ func branchRm(name string) error {
 	return nil
 }
 
-// branchReset descarta tudo o que a branch mudou e reclona da mesma base (mesmo TTL e porta).
+// branchReset descarta tudo o que a branch mudou e reclona da base (mesmo TTL e porta). Se a
+// família da base ganhou uma versão nova (`base refresh`), a branch passa para ela.
 func branchReset(name string) error {
 	info, err := inspectContainer(branchContainer(name))
 	if err != nil {
 		return fmt.Errorf("branch %q não existe", name)
 	}
 	l := info.Config.Labels
-	base, err := loadBase(l[lBase])
+	base, err := loadBase(first(l[lFamily], l[lBase]))
 	if err != nil {
 		return err
+	}
+	if base[lName] != l[lBase] {
+		logf("branch %q passa de %s para a versão mais nova, %s", name, l[lBase], base[lName])
 	}
 	if err := branchRm(name); err != nil {
 		return err
