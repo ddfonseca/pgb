@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -229,9 +230,15 @@ func branchExec(name string, create bool, from string, ttl time.Duration, rm boo
 	if rm {
 		defer branchRm(name)
 	}
+	return runWithURL(name, u, argv, os.Stdout)
+}
+
+// runWithURL roda argv com DATABASE_URL=u e PGB_BRANCH=name e devolve o exit code (128+N se
+// morreu pelo sinal N, 127 se não existe). Sinais recebidos pelo pgb são repassados ao comando.
+func runWithURL(name, u string, argv []string, stdout io.Writer) (int, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), "DATABASE_URL="+u, "PGB_BRANCH="+name)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return 127, err
@@ -258,7 +265,7 @@ func branchExec(name string, create bool, from string, ttl time.Duration, rm boo
 			}
 		}
 	}()
-	err = cmd.Wait()
+	err := cmd.Wait()
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
