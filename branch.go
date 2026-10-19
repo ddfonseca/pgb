@@ -150,8 +150,8 @@ func branchList() error {
 	if err != nil {
 		return err
 	}
-	t := newTable("BRANCH", "BASE", "STATUS", "EXPIRA", "URL")
-	seen := map[string]bool{}
+	t := newTable("BRANCH", "BASE", "STATUS", "EXPIRA", "PONTOS", "URL")
+	seen, saves := map[string]bool{}, saveCounts()
 	for _, n := range names {
 		info, err := inspectContainer(n)
 		if err != nil {
@@ -160,22 +160,26 @@ func branchList() error {
 		l := info.Config.Labels
 		seen[l[lName]] = true
 		u, _ := branchURL(l[lName])
-		t.row(l[lName], l[lBase], info.State.Status, orDash(l[lExpires]), orDash(u))
+		t.row(l[lName], l[lBase], info.State.Status, orDash(l[lExpires]), fmt.Sprint(saves[l[lName]]), orDash(u))
 	}
 	vols, _ := listByLabel("volume", lKind+"=branch")
 	for _, v := range vols {
 		if l, err := volumeLabels(v); err == nil && !seen[l[lName]] {
-			t.row(l[lName], l[lBase], "sem container (pgb branch rm "+l[lName]+")", orDash(l[lExpires]), "-")
+			t.row(l[lName], l[lBase], "sem container (pgb branch rm "+l[lName]+")", orDash(l[lExpires]),
+				fmt.Sprint(saves[l[lName]]), "-")
 		}
 	}
 	t.flush()
 	return nil
 }
 
-// branchRm usa cleanup(): precisa terminar mesmo depois de um Ctrl+C.
-func branchRm(name string) error {
+// branchRm apaga a branch e os pontos de salvamento dela.
+func branchRm(name string) error { return removeBranch(name, false) }
+
+// removeBranch usa cleanup(): precisa terminar mesmo depois de um Ctrl+C. O reset mantém os pontos.
+func removeBranch(name string, keepSaves bool) error {
 	c, vol := branchContainer(name), branchVolume(name)
-	if !exists("container", c) && !exists("volume", vol) {
+	if !exists("container", c) && !exists("volume", vol) && (keepSaves || len(saveVolumes(name)) == 0) {
 		return fmt.Errorf("branch %q não existe", name)
 	}
 	cleanup("rm", "-f", "-v", c)
@@ -184,12 +188,18 @@ func branchRm(name string) error {
 	if exists("volume", vol) {
 		return fmt.Errorf("não consegui remover o volume %s", vol)
 	}
+	if !keepSaves {
+		if err := removeSaves(name); err != nil {
+			return err
+		}
+	}
 	logf("branch %q removida", name)
 	return nil
 }
 
 // branchReset descarta tudo o que a branch mudou e reclona da base (mesmo TTL e porta). Se a
-// família da base ganhou uma versão nova (`base refresh`), a branch passa para ela.
+// família da base ganhou uma versão nova (`base refresh`), a branch passa para ela. Os pontos
+// de salvamento continuam.
 func branchReset(name string) error {
 	info, err := inspectContainer(branchContainer(name))
 	if err != nil {
@@ -203,7 +213,7 @@ func branchReset(name string) error {
 	if base[lName] != l[lBase] {
 		logf("branch %q passa de %s para a versão mais nova, %s", name, l[lBase], base[lName])
 	}
-	if err := branchRm(name); err != nil {
+	if err := removeBranch(name, true); err != nil {
 		return err
 	}
 	return createBranch(name, base, l[lExpires], l[lPort])

@@ -38,7 +38,7 @@ const (
 	lExpires  = "pgb.expires"
 	lPort     = "pgb.port"
 	lOwner    = "pgb.owner"
-	lBranch   = "pgb.branch" // ponto de salvamento: de que branch ele é
+	lBranch   = "pgb.branch" // ponto de salvamento: a branch dona
 	lFamily   = "pgb.family" // bases versionadas: prod.20261020153000 é da família prod
 	lRecipe   = "pgb.recipe" // como a base foi criada (JSON), para o `base refresh` refazer
 )
