@@ -78,7 +78,7 @@ func createBranch(name string, base map[string]string, expires, port string) err
 
 	start := time.Now()
 	clone := append([]string{"run", "--rm"}, helperArgs("branch:"+name)...)
-	clone = append(clone, "-v", baseVolume(base[lName])+":/src:ro", "-v", vol+":/dst", base[lImage], "sh", "-c", cloneScript)
+	clone = append(clone, "-v", baseVolume(base[lName])+":/src:ro", "-v", vol+":/dst", base[lImage], "sh", "-c", cloneScript+changesConf)
 	mode, err := docker(clone...)
 	if err != nil {
 		return fmt.Errorf("clonando a base: %w", err)
@@ -90,6 +90,7 @@ func createBranch(name string, base map[string]string, expires, port string) err
 	if err := waitReady(c, base[lUser], base[lDB], time.Minute); err != nil {
 		return err
 	}
+	createChangesSlot(labels)
 	ok = true
 	how := map[string]string{"cow": "copy-on-write", "full": "cópia cheia (fs sem reflink)"}[mode]
 	logf("branch %q de %q: clone %s em %s, pronta em %s", name, base[lName], how,
