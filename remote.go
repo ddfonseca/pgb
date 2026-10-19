@@ -429,8 +429,8 @@ func planTables(ctx context.Context, tx pgx.Tx, sel *selection, cfg *Config,
 		return nil, err
 	}
 	type rel struct {
-		oid          uint32
-		schema, name string
+		oid           uint32
+		schema, name  string
 		bytes, tuples int64
 	}
 	var rels []rel

@@ -91,6 +91,22 @@ reproduza o fluxo e rode `changes`. Saída:
 - O slot segura o WAL até alguém consumir, com teto de 2GB (`max_slot_wal_keep_size`): passou disso,
   o Postgres invalida o slot para proteger o disco (a branch continua normal). `--consume` libera.
 
+## Ensaio de migration
+
+```sh
+pgb migrate-test --from dev -- npm run db:migrate              # exit 2 se um lock travar escrita > 1s
+pgb migrate-test --lock-threshold 500ms --no-diff -- ./migrar.sh
+pgb migrate-test -- npm run db:migrate > schema.diff            # diff do schema no stdout
+```
+
+Roda o comando numa branch `mig-<hex>` (TTL 1h, apagada no fim, `--keep` mantém) e responde: a
+migration pega locks que travam as escritas do app, quanto tempo leva e o que mudou no schema.
+Uma conexão `pgb-monitor` olha o `pg_locks` a cada 100 ms e reporta os locks `Share`,
+`ShareRowExclusive`, `Exclusive` e `AccessExclusive` em tabelas que já existiam (os das tabelas
+que a migration cria não importam). O diff é `pg_dump -s` antes × depois, pelo `diff -u`.
+Exit: o do comando se ele falhar; 2 se algum lock passou de `--lock-threshold`; senão 0. Os
+tempos são locais: em prod as tabelas são maiores e o lock dura mais; locks < 100 ms podem escapar.
+
 ## Como funciona
 
 - **Base**: volume Docker com um data dir *parado*. `--from-container` usa `pg_basebackup -X stream`

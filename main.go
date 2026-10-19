@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/signal"
-	"syscall"
 	"os"
+	"os/signal"
 	"regexp"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -55,7 +55,7 @@ func rootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), &cobra.Command{
+	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), migrateCmd(), &cobra.Command{
 		Use:   "gc",
 		Short: "Apaga as branches com TTL vencido",
 		RunE:  func(*cobra.Command, []string) error { return gc() },
