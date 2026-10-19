@@ -88,7 +88,7 @@ func migrateTest(o migrateOpts, argv []string) (int, error) {
 	// Como no branch exec: a URL do create vai para o stderr.
 	stdout := os.Stdout
 	os.Stdout = os.Stderr
-	err = createBranch(name, base, time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "")
+	err = createBranch(name, base, time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "", "")
 	os.Stdout = stdout
 	if err != nil {
 		return 1, err

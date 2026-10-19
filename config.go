@@ -14,15 +14,21 @@ import (
 
 // Config é o pgb.yaml do projeto: de onde copiar, que tabelas/linhas trazer e como mascarar.
 type Config struct {
-	Image    string                       `yaml:"image"`
-	Source   SourceConfig                 `yaml:"source"`
-	Since    string                       `yaml:"since"`
-	MaxSize  string                       `yaml:"max_size"`
-	Tables   map[string]TableRule         `yaml:"tables"`
-	Mask     map[string]map[string]string `yaml:"mask"`
-	Presets  map[string]string            `yaml:"presets"`
-	Profiles map[string]Profile           `yaml:"profiles"`
-	Audit    AuditConfig                  `yaml:"audit"`
+	Image     string                       `yaml:"image"`
+	Source    SourceConfig                 `yaml:"source"`
+	Since     string                       `yaml:"since"`
+	MaxSize   string                       `yaml:"max_size"`
+	Tables    map[string]TableRule         `yaml:"tables"`
+	Mask      map[string]map[string]string `yaml:"mask"`
+	Presets   map[string]string            `yaml:"presets"`
+	Profiles  map[string]Profile           `yaml:"profiles"`
+	Audit     AuditConfig                  `yaml:"audit"`
+	TimeShift TimeShiftConfig              `yaml:"time_shift"`
+}
+
+// TimeShiftConfig: tabelas que o `branch create --at` não desloca (globs, como em tables).
+type TimeShiftConfig struct {
+	Skip []string `yaml:"skip"`
 }
 
 type SourceConfig struct {

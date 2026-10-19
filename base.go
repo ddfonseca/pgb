@@ -38,9 +38,11 @@ const (
 	lExpires  = "pgb.expires"
 	lPort     = "pgb.port"
 	lOwner    = "pgb.owner"
-	lBranch   = "pgb.branch" // ponto de salvamento: a branch dona
-	lFamily   = "pgb.family" // bases versionadas: prod.20261020153000 é da família prod
-	lRecipe   = "pgb.recipe" // como a base foi criada (JSON), para o `base refresh` refazer
+	lBranch   = "pgb.branch"   // ponto de salvamento: a branch dona
+	lFamily   = "pgb.family"   // bases versionadas: prod.20261020153000 é da família prod
+	lRecipe   = "pgb.recipe"   // como a base foi criada (JSON), para o `base refresh` refazer
+	lAt       = "pgb.at"       // branch: --at, reaplicado no reset (ver timeshift.go)
+	lTimeSkip = "pgb.timeskip" // base: time_shift.skip do pgb.yaml, globs separados por vírgula
 )
 
 func baseVolume(name string) string { return "pgb-base-" + name }

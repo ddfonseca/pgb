@@ -183,6 +183,9 @@ func baseFromRemote(name, family string, o remoteOpts) error {
 	if o.profile != "" {
 		labels["pgb.profile"] = o.profile
 	}
+	if len(cfg.TimeShift.Skip) > 0 {
+		labels[lTimeSkip] = strings.Join(cfg.TimeShift.Skip, ",")
+	}
 	recipe, _ := json.Marshal(o.recipe())
 	labels[lFamily], labels[lRecipe] = family, string(recipe)
 	b := &baseBuild{name: name, labels: labels}

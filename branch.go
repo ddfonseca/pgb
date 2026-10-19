@@ -20,21 +20,27 @@ func branchVolume(name string) string    { return "pgb-br-" + name }
 const cloneScript = `if cp -a --reflink=always /src/. /dst/ 2>/dev/null; then echo cow; else
 find /dst -mindepth 1 -delete; cp -a /src/. /dst/ && echo full; fi`
 
-func branchCreate(name, from string, ttl time.Duration) error {
+func branchCreate(name, from string, ttl time.Duration, at string) error {
 	base, err := loadBase(from)
 	if err != nil {
 		return err
+	}
+	if at != "" {
+		if _, err := parseAt(at, base); err != nil {
+			return err
+		}
 	}
 	expires := ""
 	if ttl > 0 {
 		expires = time.Now().Add(ttl).UTC().Format(time.RFC3339)
 	}
-	return createBranch(name, base, expires, "")
+	return createBranch(name, base, expires, "", at)
 }
 
 // createBranch: o `docker create` do container da branch é o lock (nome único no daemon).
 // Quem perde a corrida sai sem tocar em nada; quem ganha só desfaz o que ele mesmo criou.
-func createBranch(name string, base map[string]string, expires, port string) error {
+// at (opcional): o momento que vira "agora" na branch (ver timeshift.go).
+func createBranch(name string, base map[string]string, expires, port, at string) error {
 	c, vol := branchContainer(name), branchVolume(name)
 	if exists("container", c) {
 		return fmt.Errorf("branch %q já existe", name)
@@ -55,6 +61,9 @@ func createBranch(name string, base map[string]string, expires, port string) err
 	}
 	if expires != "" {
 		labels[lExpires] = expires
+	}
+	if at != "" {
+		labels[lAt] = at
 	}
 	if _, err := docker(append([]string{"volume", "create"}, append(labelArgs(labels), vol)...)...); err != nil {
 		return err
@@ -90,6 +99,15 @@ func createBranch(name string, base map[string]string, expires, port string) err
 	}
 	if err := waitReady(c, base[lUser], base[lDB], time.Minute); err != nil {
 		return err
+	}
+	if at != "" {
+		t, err := parseAt(at, base)
+		if err != nil {
+			return err
+		}
+		if err := shiftTime(labels, t, timeSkip(base)); err != nil {
+			return fmt.Errorf("deslocando o tempo: %w", err)
+		}
 	}
 	createChangesSlot(labels)
 	ok = true
@@ -201,7 +219,7 @@ func removeBranch(name string, keepSaves bool) error {
 
 // branchReset descarta tudo o que a branch mudou e reclona da base (mesmo TTL e porta). Se a
 // família da base ganhou uma versão nova (`base refresh`), a branch passa para ela. Os pontos
-// de salvamento continuam.
+// de salvamento continuam. Com --at, o deslocamento é refeito a partir de agora.
 func branchReset(name string) error {
 	info, err := inspectContainer(branchContainer(name))
 	if err != nil {
@@ -218,18 +236,18 @@ func branchReset(name string) error {
 	if err := removeBranch(name, true); err != nil {
 		return err
 	}
-	return createBranch(name, base, l[lExpires], l[lPort])
+	return createBranch(name, base, l[lExpires], l[lPort], l[lAt])
 }
 
 // branchExec roda um comando com DATABASE_URL apontando para a branch e devolve o exit code
 // dele (128+N se morreu pelo sinal N, 127 se não existe). Sinais recebidos pelo pgb são
 // repassados ao comando; com --rm, a branch é apagada em qualquer saída.
-func branchExec(name string, create bool, from string, ttl time.Duration, rm bool, argv []string) (int, error) {
+func branchExec(name string, create bool, from string, ttl time.Duration, at string, rm bool, argv []string) (int, error) {
 	if create {
 		// A URL impressa pelo create vai para o stderr aqui, o stdout fica só para o comando.
 		stdout := os.Stdout
 		os.Stdout = os.Stderr
-		err := branchCreate(name, from, ttl)
+		err := branchCreate(name, from, ttl, at)
 		os.Stdout = stdout
 		if err != nil {
 			return 1, err

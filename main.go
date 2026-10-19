@@ -133,7 +133,7 @@ continuam na antiga até o reset. Ficam as --keep versões mais novas, e as que 
 func branchCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "branch", Short: "Postgres descartáveis clonados de uma base"}
 
-	var from string
+	var from, at string
 	var ttl time.Duration
 	create := &cobra.Command{
 		Use:   "create <nome>",
@@ -143,14 +143,15 @@ func branchCmd() *cobra.Command {
 			if ttl < 0 {
 				return fmt.Errorf("--ttl não pode ser negativo")
 			}
-			return branchCreate(args[0], from, ttl)
+			return branchCreate(args[0], from, ttl, at)
 		},
 	}
 	create.Flags().StringVar(&from, "from", "", "base de origem (opcional se só houver uma)")
 	create.Flags().DurationVar(&ttl, "ttl", 0, "validade, ex.: 1h; `pgb gc` apaga as vencidas")
+	create.Flags().StringVar(&at, "at", "", `desloca as datas para este momento virar agora: base (a cópia) ou "2026-10-18 14:32"`)
 
 	var exCreate, exRm bool
-	var exFrom string
+	var exFrom, exAt string
 	var exTTL time.Duration
 	exec := &cobra.Command{
 		Use:   "exec <nome> [--create] [--rm] -- <comando...>",
@@ -162,13 +163,13 @@ func branchCmd() *cobra.Command {
 			return nameArg(cmd, args[:1])
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !exCreate && (cmd.Flags().Changed("from") || cmd.Flags().Changed("ttl")) {
-				return fmt.Errorf("--from e --ttl só valem com --create")
+			if !exCreate && (cmd.Flags().Changed("from") || cmd.Flags().Changed("ttl") || cmd.Flags().Changed("at")) {
+				return fmt.Errorf("--from, --ttl e --at só valem com --create")
 			}
 			if exTTL < 0 {
 				return fmt.Errorf("--ttl não pode ser negativo")
 			}
-			code, err := branchExec(args[0], exCreate, exFrom, exTTL, exRm, args[1:])
+			code, err := branchExec(args[0], exCreate, exFrom, exTTL, exAt, exRm, args[1:])
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "erro:", err)
 			}
@@ -179,6 +180,7 @@ func branchCmd() *cobra.Command {
 	exec.Flags().BoolVar(&exCreate, "create", false, "cria a branch antes")
 	exec.Flags().StringVar(&exFrom, "from", "", "base de origem, com --create")
 	exec.Flags().DurationVar(&exTTL, "ttl", 0, "validade, com --create")
+	exec.Flags().StringVar(&exAt, "at", "", "desloca as datas (ver branch create), com --create")
 	exec.Flags().BoolVar(&exRm, "rm", false, "apaga a branch no fim, mesmo se o comando falhar")
 
 	one := func(use, short string, fn func(string) error) *cobra.Command {

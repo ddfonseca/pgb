@@ -26,6 +26,20 @@ repete. O ponto é um volume `pgb-save-<branch>_<ponto>` copiado como o clone (r
 com a branch parada durante a cópia (consistência) e religada no fim se estava rodando; porta e URL
 não mudam. O restore não é interrompível. `branch rm` apaga os pontos; `branch reset` os mantém.
 
+## Voltar no tempo (`--at`)
+
+```sh
+pgb branch create pr-1 --from prod --at base                 # a hora da cópia vira agora
+pgb branch create inc --from prod --at "2026-10-18 14:32"    # a hora do incidente vira agora
+```
+
+Soma `agora - momento` em toda coluna `timestamp`/`timestamptz` (e `date`, em dias inteiros) da
+branch, antes do slot de mudanças (não aparece no `changes`) e sem triggers. Regras de tempo
+decorrido (sessão de 24h, nudge, janelas de N dias) agem como naquele momento; o que veio depois
+dele fica no futuro. Não mexe em datas dentro de texto/JSON nem no relógio do app (horário do dia,
+virada do dia). `time_shift.skip` no `pgb.yaml` (gravado na base) deixa tabelas de fora. O reset
+refaz o deslocamento a partir da hora do reset; um ponto de salvamento traz o de quando foi salvo.
+
 ## Cópia de prod (lógica, filtrada e mascarada na origem)
 
 ```sh
