@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"fmt"
 	"os"
 	"os/exec"
@@ -156,4 +157,18 @@ func hostPort(container string) (string, error) {
 		return "", fmt.Errorf("porta inesperada: %q", out)
 	}
 	return first[i+1:], nil
+}
+
+// dockerIO roda docker com stdin/env opcionais e devolve o stdout (stderr vai no erro).
+func dockerIO(stdin io.Reader, env []string, args ...string) ([]byte, error) {
+	cmd := exec.Command("docker", args...)
+	var out, errb bytes.Buffer
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, &out, &errb
+	if env != nil {
+		cmd.Env = env
+	}
+	if err := cmd.Run(); err != nil {
+		return out.Bytes(), fmt.Errorf("docker %s: %v: %s", args[0], err, strings.TrimSpace(errb.String()))
+	}
+	return out.Bytes(), nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"text/tabwriter"
@@ -51,19 +52,37 @@ func baseCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "base", Short: "Cópias consistentes e paradas, de onde saem as branches"}
 
 	var fromContainer, mask string
+	var ro remoteOpts
 	create := &cobra.Command{
-		Use:   "create <nome> --from-container <container>",
-		Short: "Cria uma base a partir de um Postgres em Docker (sem pará-lo)",
-		Args:  nameArg,
-		RunE: func(_ *cobra.Command, args []string) error {
-			if fromContainer == "" {
-				return fmt.Errorf("informe --from-container")
+		Use:   "create <nome> (--from-container <c> | --from-url <url> | --cloudsql <instância> | source no pgb.yaml)",
+		Short: "Cria uma base a partir de um Postgres em Docker, de uma URL ou do Cloud SQL",
+		Long: `Com --from-container: cópia física (pg_basebackup) de um container rodando, sem pará-lo.
+Com --from-url/--cloudsql/source do pgb.yaml: cópia lógica, com as regras de tabelas, filtros
+(where) e máscaras do pgb.yaml aplicadas na origem. Use --dry-run para ver o plano e o tamanho.`,
+		Args: nameArg,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if fromContainer != "" {
+				return baseFromContainer(args[0], fromContainer, mask)
 			}
-			return baseFromContainer(args[0], fromContainer, mask)
+			ro.configSet = cmd.Flags().Changed("config")
+			return baseFromRemote(args[0], ro)
 		},
 	}
-	create.Flags().StringVar(&fromContainer, "from-container", "", "container Postgres de origem")
-	create.Flags().StringVar(&mask, "mask", "", "arquivo .sql de mascaramento, aplicado antes de congelar a base")
+	f := create.Flags()
+	f.StringVar(&fromContainer, "from-container", "", "container Postgres de origem (cópia física)")
+	f.StringVar(&mask, "mask", "", "com --from-container: .sql de mascaramento aplicado antes de congelar a base")
+	f.StringVar(&ro.fromURL, "from-url", "", "URL do Postgres de origem (cópia lógica)")
+	f.StringVar(&ro.cloudSQL, "cloudsql", "", "instância Cloud SQL (projeto:região:instância)")
+	f.StringVarP(&ro.configFile, "config", "c", "pgb.yaml", "arquivo de configuração")
+	f.StringVarP(&ro.profile, "profile", "p", "", "profile do pgb.yaml (ex.: tenant, thread)")
+	f.StringToStringVar(&ro.params, "set", nil, "parâmetros do profile, ex.: --set tenant=abc")
+	f.StringVar(&ro.since, "since", "", "janela para {{since}}, ex.: 30d (sobrepõe o pgb.yaml)")
+	f.StringVar(&ro.maxSize, "max-size", "", "aborta se a estimativa passar disso (padrão 20GB)")
+	f.StringVar(&ro.image, "image", "", "imagem do Postgres local (padrão: image do pgb.yaml ou postgres:16)")
+	f.BoolVar(&ro.dryRun, "dry-run", false, "só mostra o plano e a estimativa de tamanho")
+	f.BoolVar(&ro.strict, "strict", false, "falha em vez de apagar linhas órfãs de FKs")
+	create.MarkFlagsMutuallyExclusive("from-container", "from-url")
+	create.MarkFlagsMutuallyExclusive("from-container", "cloudsql")
 
 	var force bool
 	rm := &cobra.Command{
@@ -145,8 +164,10 @@ func branchCmd() *cobra.Command {
 
 type table struct{ w *tabwriter.Writer }
 
-func newTable(cols ...string) *table {
-	t := &table{tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)}
+func newTable(cols ...string) *table { return newTableTo(os.Stdout, cols...) }
+
+func newTableTo(w io.Writer, cols ...string) *table {
+	t := &table{tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)}
 	t.row(cols...)
 	return t
 }
