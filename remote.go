@@ -63,7 +63,7 @@ type tablePlan struct {
 }
 
 func baseFromRemote(name string, o remoteOpts) error {
-	ctx := context.Background()
+	ctx := appCtx
 	cfg, err := loadConfig(o.configFile, o.configSet)
 	if err != nil {
 		return err
@@ -81,8 +81,7 @@ func baseFromRemote(name string, o remoteOpts) error {
 		return err
 	}
 	image := first(o.image, cfg.Image, "postgres:16")
-	vol := baseVolume(name)
-	if !o.dryRun && exists("volume", vol) {
+	if !o.dryRun && (exists("volume", baseReady(name)) || exists("volume", baseVolume(name))) {
 		return fmt.Errorf("base %q já existe (pgb base rm %s)", name, name)
 	}
 
@@ -117,11 +116,11 @@ func baseFromRemote(name string, o remoteOpts) error {
 
 	// O schema sai agora, no mesmo snapshot; o post-data (índices, FKs, triggers) só é aplicado
 	// depois dos dados e da limpeza de órfãs.
-	preData, err := dumpSchema(src, image, snapshot, "pre-data")
+	preData, err := dumpSchema(src, "base:"+name, image, snapshot, "pre-data")
 	if err != nil {
 		return err
 	}
-	postData, err := dumpSchema(src, image, snapshot, "post-data")
+	postData, err := dumpSchema(src, "base:"+name, image, snapshot, "post-data")
 	if err != nil {
 		return err
 	}
@@ -142,21 +141,14 @@ func baseFromRemote(name string, o remoteOpts) error {
 	if o.profile != "" {
 		labels["pgb.profile"] = o.profile
 	}
-	if _, err := docker(append([]string{"volume", "create"}, append(labelArgs(labels), vol)...)...); err != nil {
+	b := &baseBuild{name: name, labels: labels}
+	if err := b.lock("-e", "POSTGRES_USER="+src.user, "-e", "POSTGRES_PASSWORD="+localPassword,
+		"-e", "POSTGRES_DB="+src.db, "-p", "127.0.0.1::5432"); err != nil {
 		return err
 	}
-	tmp := "pgb-tmp-" + name
-	ok := false
-	defer func() {
-		docker("rm", "-f", tmp)
-		if !ok {
-			docker("volume", "rm", "-f", vol)
-		}
-	}()
-	docker("rm", "-f", tmp)
-	if _, err := docker("run", "-d", "--name", tmp,
-		"-e", "POSTGRES_USER="+src.user, "-e", "POSTGRES_PASSWORD="+localPassword, "-e", "POSTGRES_DB="+src.db,
-		"-p", "127.0.0.1::5432", "-v", vol+":"+pgdata, image); err != nil {
+	defer b.release()
+	tmp := baseTmp(name)
+	if _, err := docker("start", tmp); err != nil {
 		return err
 	}
 	dst, err := connectLocal(ctx, tmp, src.user, src.db)
@@ -203,9 +195,7 @@ func baseFromRemote(name string, o remoteOpts) error {
 	if _, err := docker("stop", "-t", "60", tmp); err != nil {
 		return err
 	}
-	ok = true
-	logf("base %q pronta", name)
-	return nil
+	return b.finish()
 }
 
 func first(vals ...string) string {
@@ -543,12 +533,13 @@ func printPlan(plans []*tablePlan) int64 {
 // Destino
 // ---------------------------------------------------------------------------
 
-func dumpSchema(src *source, image, snapshot, section string) ([]byte, error) {
-	args := append([]string{"run", "--rm"}, src.dumpArgs[:len(src.dumpArgs)-4]...)
+func dumpSchema(src *source, owner, image, snapshot, section string) ([]byte, error) {
+	args := append([]string{"run", "--rm"}, helperArgs(owner)...)
+	args = append(args, src.dumpArgs[:len(src.dumpArgs)-4]...)
 	args = append(args, image, "pg_dump", "--schema-only", "--section="+section,
 		"--no-owner", "--no-privileges", "--snapshot="+snapshot)
 	args = append(args, src.dumpArgs[len(src.dumpArgs)-4:]...)
-	out, err := dockerIO(nil, src.env, args...)
+	out, err := dockerIO(appCtx, nil, src.env, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pg_dump %s: %w", section, err)
 	}
@@ -556,8 +547,8 @@ func dumpSchema(src *source, image, snapshot, section string) ([]byte, error) {
 }
 
 func psqlExec(container, user, db string, sql []byte) error {
-	_, err := dockerIO(strings.NewReader(string(sql)), nil,
-		"exec", "-i", container, "psql", "-q", "-X", "-v", "ON_ERROR_STOP=1", "-U", user, "-d", db)
+	_, err := dockerIO(appCtx, strings.NewReader(string(sql)), nil,
+		"exec", "-i", container, "psql", "-q", "-X", "-w", "-v", "ON_ERROR_STOP=1", "-U", user, "-d", db)
 	return err
 }
 
@@ -594,8 +585,11 @@ func connectLocal(ctx context.Context, container, user, db string) (*pgx.Conn, e
 				return conn, nil
 			}
 		}
+		if ctx.Err() != nil {
+			return nil, errInterrupted
+		}
 		if time.Now().After(deadline) {
-			logs, _ := dockerIO(nil, nil, "logs", "--tail", "20", container)
+			logs, _ := dockerIO(context.Background(), nil, nil, "logs", "--tail", "20", container)
 			return nil, fmt.Errorf("postgres local não subiu:\n%s", logs)
 		}
 		time.Sleep(300 * time.Millisecond)

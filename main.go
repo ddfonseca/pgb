@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os/signal"
+	"syscall"
 	"os"
 	"regexp"
 	"text/tabwriter"
@@ -12,8 +15,20 @@ import (
 )
 
 func main() {
-	if err := rootCmd().Execute(); err != nil {
+	// Ctrl+C / kill / fechar o terminal cancelam o appCtx em vez de matar o processo: os defers
+	// de limpeza rodam e nada fica pela metade.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	appCtx = ctx
+	err := rootCmd().Execute()
+	interrupted := ctx.Err() != nil
+	stop()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "erro:", err)
+	}
+	switch {
+	case interrupted:
+		os.Exit(130)
+	case err != nil:
 		os.Exit(1)
 	}
 }
@@ -110,7 +125,12 @@ func branchCmd() *cobra.Command {
 		Use:   "create <nome>",
 		Short: "Clona a base e sobe um Postgres; imprime a DATABASE_URL",
 		Args:  nameArg,
-		RunE:  func(_ *cobra.Command, args []string) error { return branchCreate(args[0], from, ttl) },
+		RunE: func(_ *cobra.Command, args []string) error {
+			if ttl < 0 {
+				return fmt.Errorf("--ttl não pode ser negativo")
+			}
+			return branchCreate(args[0], from, ttl)
+		},
 	}
 	create.Flags().StringVar(&from, "from", "", "base de origem (opcional se só houver uma)")
 	create.Flags().DurationVar(&ttl, "ttl", 0, "validade, ex.: 1h; `pgb gc` apaga as vencidas")
@@ -127,10 +147,16 @@ func branchCmd() *cobra.Command {
 			}
 			return nameArg(cmd, args[:1])
 		},
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !exCreate && (cmd.Flags().Changed("from") || cmd.Flags().Changed("ttl")) {
+				return fmt.Errorf("--from e --ttl só valem com --create")
+			}
+			if exTTL < 0 {
+				return fmt.Errorf("--ttl não pode ser negativo")
+			}
 			code, err := branchExec(args[0], exCreate, exFrom, exTTL, exRm, args[1:])
 			if err != nil {
-				return err
+				fmt.Fprintln(os.Stderr, "erro:", err)
 			}
 			os.Exit(code)
 			return nil
