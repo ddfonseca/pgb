@@ -459,9 +459,12 @@ func planTables(ctx context.Context, tx pgx.Tx, sel *selection, cfg *Config,
 		}
 		plans = append(plans, p)
 	}
+	// Tabela que não existe na origem não é copiada, então não vaza nada: só avisa (é o caso de
+	// uma migration que ainda não chegou em prod). Coluna inexistente numa tabela que existe
+	// continua sendo erro, porque aí a máscara não estaria valendo.
 	for t := range masks {
 		if _, ok := seenMask[t]; !ok {
-			return nil, fmt.Errorf("mask: tabela %q não existe na origem", t)
+			logf("aviso: mask de %q ignorada, a tabela não existe na origem", t)
 		}
 	}
 	return plans, nil
