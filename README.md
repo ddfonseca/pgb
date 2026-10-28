@@ -8,10 +8,24 @@ Linux com btrfs: clone em ~0,45 s e Postgres aceitando conexões em ~0,75 s; o c
 leva ~1,2 s. Em XFS é igual; em ext4 e nos volumes do Docker Desktop/WSL2 não há reflink e o
 clone vira cópia cheia, proporcional ao tamanho da base.
 
-```sh
-go build -o pgb .
+## Instalação
 
-pgb base create dev --from-container myapp-postgres-1   # cópia consistente, sem parar a origem
+Binários em [Releases](https://github.com/ddfonseca/pgb/releases) para Linux e macOS (amd64 e
+arm64). No WSL, use o de Linux. Precisa do Docker rodando.
+
+```sh
+# troque linux_amd64 por linux_arm64, darwin_amd64 ou darwin_arm64
+curl -L https://github.com/ddfonseca/pgb/releases/download/v0.1.0/pgb_0.1.0_linux_amd64.tar.gz | tar xz
+sudo mv pgb_0.1.0_linux_amd64/pgb /usr/local/bin/
+```
+
+No macOS o binário não é assinado: na primeira vez, `xattr -d com.apple.quarantine /usr/local/bin/pgb`.
+Ou compile (Go 1.27+): `git clone https://github.com/ddfonseca/pgb && cd pgb && go build -o pgb .`
+
+## Uso
+
+```sh
+pgb base create dev --from-container myapp-postgres-1            # cópia consistente, sem parar a origem
 pgb branch create pr-1 --ttl 1h                                  # imprime a DATABASE_URL
 pgb branch exec ci-1 --create --rm -- npm test                   # cria, roda com DATABASE_URL, apaga
 pgb branch list | url | start | reset | rm
