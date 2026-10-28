@@ -138,3 +138,6 @@ tempos são locais: em prod as tabelas são maiores e o lock dura mais; locks < 
   aparece como pronta depois do volume `pgb-ready-<nome>`. Ctrl+C/SIGTERM desfazem o que estava
   sendo criado; `branch exec --rm` repassa o sinal ao comando (SIGKILL após 10 s) e apaga a branch.
 
+## Licença
+
+[MIT](LICENSE)
