@@ -15,8 +15,9 @@ arm64). No WSL, use o de Linux. Precisa do Docker rodando.
 
 ```sh
 # troque linux_amd64 por linux_arm64, darwin_amd64 ou darwin_arm64
-curl -L https://github.com/ddfonseca/pgb/releases/download/v0.1.0/pgb_0.1.0_linux_amd64.tar.gz | tar xz
-sudo mv pgb_0.1.0_linux_amd64/pgb /usr/local/bin/
+curl -L https://github.com/ddfonseca/pgb/releases/download/v0.1.1/pgb_0.1.1_linux_amd64.tar.gz | tar xz
+sudo mv pgb_0.1.1_linux_amd64/pgb /usr/local/bin/
+pgb version
 ```
 
 No macOS o binário não é assinado: na primeira vez, `xattr -d com.apple.quarantine /usr/local/bin/pgb`.

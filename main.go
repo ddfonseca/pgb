@@ -52,9 +52,11 @@ func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "pgb",
 		Short:         "Branches descartáveis de Postgres, em Docker, com copy-on-write quando o disco permite",
+		Version:       versionString(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetVersionTemplate("pgb {{.Version}}\n")
 	var yes bool
 	purgeCmd := &cobra.Command{
 		Use:   "purge",
@@ -66,7 +68,7 @@ em containers de fora do pgb (ex.: o Postgres do docker compose).`,
 		RunE: func(*cobra.Command, []string) error { return purge(yes) },
 	}
 	purgeCmd.Flags().BoolVar(&yes, "yes", false, "não pede confirmação")
-	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), migrateCmd(), purgeCmd, &cobra.Command{
+	root.AddCommand(baseCmd(), branchCmd(), saveCmd(), auditCmd(), migrateCmd(), purgeCmd, versionCmd(), &cobra.Command{
 		Use:   "gc",
 		Short: "Apaga as branches com TTL vencido",
 		RunE:  func(*cobra.Command, []string) error { return gc() },
