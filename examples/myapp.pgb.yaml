@@ -1,0 +1,104 @@
+# pgb.yaml de um app fictício (loja multi-tenant): cópia local de prod, filtrada e mascarada NA ORIGEM.
+#   pgb base create prod --dry-run                         # plano + estimativa de tamanho
+#   pgb base create prod                                   # tudo (sem dados de pagamento), últimos 7 dias de eventos
+#   pgb base create s-acme -p store --set store=acme       # só uma loja
+#   pgb base create c-42 -p customer --set store=acme --set customer=42
+
+image: postgres:16
+source:
+  # Cloud SQL: túnel pelo conector Go, com a SA de leitura impersonada.
+  cloudsql: meu-projeto:us-central1:myapp-pg
+  impersonate: myapp-readonly@meu-projeto.iam.gserviceaccount.com
+  env_file: .env.production   # só usuário/senha/banco; o host vem do túnel
+  url_var: DATABASE_URL
+  # Sem Cloud SQL: url: postgres://leitura@db.exemplo.invalid:5432/myapp
+since: 7d
+max_size: 20GB
+
+tables:
+  "*": all
+  # Dados de cartão e respostas cruas do gateway nunca saem de prod
+  payment_methods: schema-only
+  payment_webhooks: schema-only
+  # Sessões e tokens de login
+  auth.sessions: schema-only
+  auth.password_resets: schema-only
+  # Fila de jobs: inútil local e cheia de payloads
+  jobs: schema-only
+  # Só pedidos de teste da equipe no sandbox
+  sandbox_orders: { where: "created_by_staff" }
+  # Volume: só a janela recente
+  events: { where: "occurred_at > {{since}}" }
+  email_log: { where: "sent_at > {{since}}" }
+
+# Rodam (sh -c, no diretório do pgb.yaml) com DATABASE_URL na base em construção, antes de
+# congelar: toda branch já nasce com o que eles gravarem. A cópia não traz senhas, então o seed
+# cria um admin local de dev.
+after_copy:
+  - npm run -s seed:dev-admin
+
+# `pgb branch create x --at "2026-10-18 14:32"` (ou --at base) soma (agora - momento) em toda
+# coluna de data da branch. Catálogo não depende de tempo, e reescrever as linhas com embedding
+# custaria o índice vetorial inteiro.
+time_shift:
+  skip: ["product*", "categories"]
+
+# {{col}} = coluna original, {{salt}} = sal aleatório da cópia (descartado no fim).
+# O mesmo valor vira o mesmo hash em todas as tabelas, então os joins por e-mail continuam batendo.
+presets:
+  phone: "'+55119' || lpad(((('x' || substr(md5({{salt}} || {{col}}), 1, 15))::bit(60)::bigint) % 100000000)::text, 8, '0')"
+  name: "'Cliente ' || substr(md5({{salt}} || {{col}}), 1, 6)"
+  email: "substr(md5({{salt}} || {{col}}), 1, 12) || '@exemplo.invalid'"
+  # CPF com 11 dígitos, mas sem ser o de ninguém
+  cpf: "lpad(((('x' || substr(md5({{salt}} || {{col}}), 1, 15))::bit(60)::bigint) % 100000000000)::text, 11, '0')"
+  removed: "'[removido]'"
+  # Para colunas com unique: valores diferentes continuam diferentes.
+  removed_unique: "'[removido ' || substr(md5({{salt}} || {{col}}), 1, 8) || ']'"
+  empty_json: "'{}'::jsonb"
+
+mask:
+  # Credenciais da loja (gateway, frete): sem elas o app cai nas chaves de sandbox do .env.local
+  # em vez de cobrar cartões de verdade.
+  stores:          { settings: "{{col}} #- '{payments,apiKey}' #- '{shipping,token}'" }
+  customers:       { name: name, email: email, phone: phone, document: cpf, birthday: "null", notes: "null" }
+  addresses:       { street: removed, number: "null", complement: "null", zip: "null", recipient: name }
+  orders:          { customer_email: email, gift_message: "null", metadata: empty_json }
+  reviews:         { author_name: name, body: removed }
+  coupons_used:    { customer_email: email }
+  support_tickets: { email: email, subject: removed_unique, body: removed }   # unique (store_id, subject)
+  events:          { payload: "{{col}} - 'ip' - 'userAgent' - 'searchTerm'" }
+  email_log:       { recipient: email, body: "null" }
+  auth.users:      { name: name, email: email, avatar_url: "null", password_hash: "null" }
+  auth.api_keys:   { key: hash }
+
+# `pgb audit` (e o fim de todo `base create` lógico) procura WhatsApp, telefone, e-mail e CPF nas
+# colunas de texto sem mask. Aqui só o que é dado de negócio, não pessoal:
+audit:
+  ignore:
+    # Contato público da loja (SAC), o mesmo da vitrine.
+    - stores.support_phone
+    - stores.support_email
+    # Descrição de produto com o telefone do fornecedor.
+    - products.description
+
+profiles:
+  store:
+    description: Uma loja inteira (config, catálogo e os dados dela, mascarados)
+    params: [store]
+    scope: { store_id: "{{store}}" }
+    tables:
+      stores: { where: "id = {{store}}" }
+      # products, orders etc. filtram por store_id pelo scope; itens e endereços saem pela
+      # limpeza de órfãs (FK para orders e customers)
+
+  customer:
+    description: Config da loja + tudo de UM cliente (mascarado)
+    params: [store, customer]
+    scope: { store_id: "{{store}}", customer_id: "{{customer}}" }
+    tables:
+      stores: { where: "id = {{store}}" }
+      customers: { where: "store_id = {{store}} and id = {{customer}}::bigint" }
+      products: { where: "store_id = {{store}}" }
+      categories: { where: "store_id = {{store}}" }
+      events: { where: "store_id = {{store}} and customer_id = {{customer}}::bigint" }
+      sandbox_orders: schema-only
