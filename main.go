@@ -57,6 +57,16 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.SetVersionTemplate("pgb {{.Version}}\n")
+	var skill bool
+	root.Flags().BoolVar(&skill, "skill", false, "imprime as instruções de uso para agentes de IA (formato SKILL.md)")
+	root.Args = cobra.NoArgs
+	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		if skill {
+			printSkill()
+			return nil
+		}
+		return cmd.Help()
+	}
 	var yes bool
 	purgeCmd := &cobra.Command{
 		Use:   "purge",

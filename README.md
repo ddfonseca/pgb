@@ -35,6 +35,18 @@ pgb gc                                                           # apaga branche
 pgb purge                                                        # apaga tudo do pgb (pede confirmação)
 ```
 
+## Para agentes de IA
+
+`pgb --skill` imprime as instruções de uso escritas para um agente (Claude Code, Codex, Cursor...):
+quando usar uma branch, as receitas (testes, `changes`, pontos de salvamento, `--at`,
+`migrate-test`) e o que fica com o usuário (criar base de prod, `purge`). Sai no formato de skill
+do Claude Code, e acompanha a versão do binário:
+
+```sh
+mkdir -p ~/.claude/skills/pgb && pgb --skill > ~/.claude/skills/pgb/SKILL.md   # Claude Code
+pgb --skill >> AGENTS.md                                                        # outros agentes
+```
+
 ## Pontos de salvamento
 
 ```sh
