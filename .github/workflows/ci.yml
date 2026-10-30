@@ -49,3 +49,34 @@ jobs:
           go-version-file: go.mod
       - run: docker pull -q ${{ matrix.image }}
       - run: go test -count=1 -timeout 10m ./...
+
+  # O binário no macOS fala com um Docker numa VM Linux (aqui o colima): muda como o pg_dump chega
+  # numa origem no localhost (host.docker.internal). Os runners Apple Silicon do GitHub não têm
+  # virtualização aninhada, então o Docker só sobe no Intel.
+  test-macos:
+    runs-on: macos-15-intel
+    env:
+      PGB_TEST_DOCKER: 1
+      PGB_TEST_IMAGE: postgres:17-alpine
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: docker (colima)
+        run: |
+          brew install -q colima docker
+          colima start --cpu 3 --memory 6
+          docker info --format '{{.OperatingSystem}}'
+      - run: docker pull -q $PGB_TEST_IMAGE
+      - run: go test -count=1 -timeout 15m ./...
+
+  # Apple Silicon: sem Docker, só os testes de unidade.
+  unit-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go test -count=1 -short ./...

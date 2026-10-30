@@ -22,10 +22,12 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	var lastLog string // stderr do último comando
+	dir := t.TempDir() // sem pgb.yaml
 	pgb := func(args ...string) (string, int) {
 		t.Helper()
 		var stdout, stderr bytes.Buffer
 		cmd := exec.Command(bin, args...)
+		cmd.Dir = dir
 		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		err := cmd.Run()
 		var exit *exec.ExitError
@@ -128,6 +130,16 @@ func TestEndToEnd(t *testing.T) {
 	}
 	if got := must("branch", "changes", br); got != "" {
 		t.Errorf("branch resetada ainda mostra mudanças:\n%s", got)
+	}
+
+	// Cópia lógica de uma origem no localhost: o pg_dump roda num container, que chega nela pela
+	// rede do host (Docker Engine no Linux) ou por host.docker.internal (macOS).
+	logical := "e2e-url-" + id
+	srcURL := "postgres://postgres:" + localPassword + "@127.0.0.1:" + port + "/app?sslmode=disable"
+	must("base", "create", logical, "--from-url", srcURL, "--image", testImage)
+	t.Cleanup(func() { pgb("base", "rm", logical, "--force") })
+	if got := query(connect(must("branch", "create", "url-"+id, "--from", logical)), state); got != "3 a,b,c" {
+		t.Errorf("branch da base lógica: %q, esperava a cópia da origem", got)
 	}
 
 	ex := "ex-" + id
