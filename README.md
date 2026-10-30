@@ -1,6 +1,22 @@
 # pgb
 
-Branches descartáveis de Postgres em Docker. Funciona em Linux, macOS (Docker Desktop) e WSL.
+Branches descartáveis de Postgres em Docker, feitas de uma cópia dos seus dados. Funciona em Linux,
+macOS (Docker Desktop) e WSL.
+
+Cada branch é o Postgres oficial, não uma reimplementação: a imagem do container de origem (ou a
+do `image` no `pgb.yaml`), com as mesmas extensões, PostGIS incluído. Em volta disso vem o que serve
+para investigar e testar contra dados de verdade:
+
+- **[Cópia de prod mascarada na origem](#cópia-de-prod-lógica-filtrada-e-mascarada-na-origem)**:
+  filtrada por tabela ou tenant, máscara por coluna e auditoria de PII antes de liberar a base.
+- **[O que o app escreveu](#o-que-o-app-escreveu-na-branch)** (`branch changes`): todo
+  INSERT/UPDATE/DELETE desde a criação, por transação.
+- **[Voltar no tempo](#voltar-no-tempo---at)** (`--at`): desloca as datas do banco para a hora do
+  incidente, e regras de "24h" ou "N dias" agem como naquele momento.
+- **[Pontos de salvamento](#pontos-de-salvamento)** (`save`): salva antes do bug, muda o código,
+  restaura, repete.
+- **[Ensaio de migration](#ensaio-de-migration)** (`migrate-test`): se a migration trava as escritas
+  do app, quanto leva e o diff do schema.
 
 **Uma branch nova fica pronta em cerca de um segundo**, qualquer que seja o tamanho do banco: o
 clone é copy-on-write (`cp --reflink`), então nada é copiado até alguém escrever. Medido num
