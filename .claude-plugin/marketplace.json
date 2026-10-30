@@ -1,0 +1,14 @@
+{
+  "name": "pgb",
+  "description": "A skill do pgb: Postgres descartável em Docker para agentes de IA.",
+  "owner": {
+    "name": "David Fonseca"
+  },
+  "plugins": [
+    {
+      "name": "pgb",
+      "source": "./",
+      "description": "Postgres descartável para testar, depurar ou ensaiar migrations sem tocar no banco de verdade."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "pgb",
+  "version": "0.1.1",
+  "description": "Postgres descartável para testar, depurar ou ensaiar migrations sem tocar no banco de verdade. Precisa do binário pgb instalado.",
+  "author": { "name": "David Fonseca" },
+  "homepage": "https://github.com/ddfonseca/pgb",
+  "repository": "https://github.com/ddfonseca/pgb",
+  "license": "MIT"
+}

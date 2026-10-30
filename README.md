@@ -1,4 +1,40 @@
-# pgb
+<h1 align="center">pgb</h1>
+
+<p align="center">
+  <strong>pgb. Seu banco de prod, descartável. 🐘</strong><br>
+  Uma branch de Postgres de verdade em ~1 s, com os dados mascarados.
+</p>
+
+<p align="center">
+  <img alt="Postgres oficial" src="https://img.shields.io/badge/Postgres-oficial_(Docker)-336791">
+  <a href="https://github.com/ddfonseca/pgb/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ddfonseca/pgb?label=vers%C3%A3o"></a>
+  <img alt="Linux, macOS e WSL" src="https://img.shields.io/badge/Linux_%C2%B7_macOS_%C2%B7_WSL-gray">
+  <a href="LICENSE"><img alt="Licença: MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-blue"></a>
+</p>
+
+```text
+# Claude Code: dentro de uma sessão
+/plugin install pgb --marketplace ddfonseca/pgb
+
+# Claude Code anterior à 2.1.275
+/plugin marketplace add ddfonseca/pgb
+/plugin install pgb@pgb
+```
+
+```bash
+# Qualquer agente (Claude Code, Cursor, Codex): o CLI de Agent Skills
+npx skills add ddfonseca/pgb --skill pgb
+```
+
+<p align="center">
+  <strong>Cada agente com o seu Postgres, feito dos seus dados.</strong><br>
+  Instale a skill e o agente cuida do banco: testes, bugs, migrations.<br>
+  Postgres oficial · Extensões funcionam · Apaga sozinha com TTL
+</p>
+
+<p align="center">
+  <sub>Open source · MIT · v0.1.1 · A skill precisa do binário: veja <a href="#instalação">Instalação</a></sub>
+</p>
 
 Branches descartáveis de Postgres em Docker, feitas de uma cópia dos seus dados. Funciona em Linux,
 macOS (Docker Desktop) e WSL.
@@ -55,8 +91,9 @@ pgb purge                                                        # apaga tudo do
 
 `pgb --skill` imprime as instruções de uso escritas para um agente (Claude Code, Codex, Cursor...):
 quando usar uma branch, as receitas (testes, `changes`, pontos de salvamento, `--at`,
-`migrate-test`) e o que fica com o usuário (criar base de prod, `purge`). Sai no formato de skill
-do Claude Code, e acompanha a versão do binário:
+`migrate-test`) e o que fica com o usuário (criar base de prod, `purge`). É o mesmo texto de
+[`skills/pgb/SKILL.md`](skills/pgb/SKILL.md), que o plugin e o `npx skills` do topo instalam.
+Pelo binário, a skill acompanha a versão dele:
 
 ```sh
 mkdir -p ~/.claude/skills/pgb && pgb --skill > ~/.claude/skills/pgb/SKILL.md   # Claude Code
