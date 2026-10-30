@@ -21,6 +21,7 @@ func TestEndToEnd(t *testing.T) {
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
+	var lastLog string // stderr do último comando
 	pgb := func(args ...string) (string, int) {
 		t.Helper()
 		var stdout, stderr bytes.Buffer
@@ -31,8 +32,21 @@ func TestEndToEnd(t *testing.T) {
 		if err != nil && !errors.As(err, &exit) {
 			t.Fatalf("pgb %s: %v", strings.Join(args, " "), err)
 		}
-		t.Logf("pgb %s\n%s", strings.Join(args, " "), stderr.String())
+		lastLog = stderr.String()
+		t.Logf("pgb %s\n%s", strings.Join(args, " "), lastLog)
 		return strings.TrimSpace(stdout.String()), cmd.ProcessState.ExitCode()
+	}
+	// Branch, save e restore copiam com reflink sempre que o fs dos volumes faz reflink, seja
+	// a imagem Debian ou Alpine.
+	wantCopy := "cópia cheia"
+	if reflinkVolumes(t) {
+		wantCopy = "copy-on-write"
+	}
+	checkCopy := func(what string) {
+		t.Helper()
+		if !strings.Contains(lastLog, wantCopy) {
+			t.Errorf("%s: esperava %s (fs dos volumes), veio:\n%s", what, wantCopy, lastLog)
+		}
 	}
 	must := func(args ...string) string {
 		t.Helper()
@@ -77,6 +91,7 @@ func TestEndToEnd(t *testing.T) {
 	t.Cleanup(func() { pgb("base", "rm", base, "--force") })
 
 	u := must("branch", "create", br, "--from", base)
+	checkCopy("branch create")
 	conn := connect(u)
 	if got := query(conn, state); got != "3 a,b,c" {
 		t.Fatalf("branch nova: %q, esperava a cópia da origem", got)
@@ -95,9 +110,11 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	must("save", "create", br, "p1")
+	checkCopy("save create")
 	conn = connect(u) // o save para a branch durante a cópia
 	mustExec(t, conn, "delete from items")
 	must("save", "restore", br, "p1")
+	checkCopy("save restore")
 	if got := must("branch", "url", br); got != u {
 		t.Errorf("a URL mudou no restore: %q -> %q", u, got)
 	}
@@ -121,4 +138,15 @@ func TestEndToEnd(t *testing.T) {
 	if _, code := pgb("branch", "url", ex); code == 0 {
 		t.Error("exec --rm deixou a branch para trás")
 	}
+}
+
+// reflinkVolumes: o filesystem dos volumes do Docker faz reflink? (btrfs/XFS sim; ext4 e
+// overlay do Docker Desktop não.) Testado entre dois volumes, como no clone.
+func reflinkVolumes(t *testing.T) bool {
+	t.Helper()
+	a, b := "pgbtest-reflink-a-"+randHex(3), "pgbtest-reflink-b-"+randHex(3)
+	defer exec.Command("docker", "volume", "rm", "-f", a, b).Run()
+	err := exec.Command("docker", "run", "--rm", "-v", a+":/a", "-v", b+":/b", "--entrypoint", "sh", testImage, "-c",
+		"head -c 1048576 /dev/urandom > /a/f && cp --reflink=always /a/f /b/f").Run()
+	return err == nil
 }
