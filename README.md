@@ -6,6 +6,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ddfonseca/pgb/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ddfonseca/pgb/actions/workflows/ci.yml/badge.svg?branch=master"></a>
   <img alt="Postgres oficial" src="https://img.shields.io/badge/Postgres-oficial_(Docker)-336791">
   <a href="https://github.com/ddfonseca/pgb/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ddfonseca/pgb?label=vers%C3%A3o"></a>
   <img alt="Linux, macOS e WSL" src="https://img.shields.io/badge/Linux_%C2%B7_macOS_%C2%B7_WSL-gray">

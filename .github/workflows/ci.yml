@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+
+      - run: go vet ./...
+
+      # As plataformas da release.
+      - name: build
+        run: |
+          for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            GOOS=${p%/*} GOARCH=${p#*/} go build -o /dev/null . || exit 1
+          done
+
+      - name: skill e manifestos do plugin
+        run: |
+          go build -o pgb .
+          ./pgb --skill | diff - skills/pgb/SKILL.md
+          jq empty .claude-plugin/plugin.json .claude-plugin/marketplace.json
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Alpine (BusyBox) e Debian (GNU): os scripts de shell dentro dos containers rodam nas duas.
+        image: [postgres:17-alpine, postgres:18]
+    env:
+      PGB_TEST_DOCKER: 1 # sem Docker é falha, não teste pulado
+      PGB_TEST_IMAGE: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: docker pull -q ${{ matrix.image }}
+      - run: go test -count=1 -timeout 10m ./...
