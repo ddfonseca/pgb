@@ -43,7 +43,7 @@ mostra só o que veio depois (e libera o WAL acumulado). Só DML: DDL não apare
 // protege o disco: sem ele um slot que ninguém consome seguraria WAL para sempre; passou
 // disso, o Postgres invalida o slot (a branch continua funcionando).
 const changesConf = ` && printf "wal_level = 'logical'\nmax_slot_wal_keep_size = '2GB'\n" >> /dst/postgresql.auto.conf &&
-chown --reference=/dst/PG_VERSION /dst/postgresql.auto.conf`
+chown "$(stat -c %u:%g /dst/PG_VERSION)" /dst/postgresql.auto.conf`
 
 // createChangesSlot roda depois do waitReady. Se falhar, só avisa: a branch funciona sem.
 // Conecta direto pela porta dos labels: um `docker exec psql` custaria ~150 ms a mais na criação.
